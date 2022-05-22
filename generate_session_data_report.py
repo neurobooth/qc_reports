@@ -104,10 +104,13 @@ def plot_traces(data, task, session_id):
         legend_dict['Mbient_RF'] = ['acc_x', 'acc_y', 'acc_z', 'gyr_x', 'gyr_y', 'gyr_z']
         legend_dict['Mbient_RH'] = ['acc_x', 'acc_y', 'acc_z', 'gyr_x', 'gyr_y', 'gyr_z']
         legend_dict['Mic'] = ['amplitude']
+        legend_dict['Intel_D455_1'] = ['Timestamp_diff']
+        legend_dict['Intel_D455_2'] = ['Timestamp_diff']
+        legend_dict['Intel_D455_3'] = ['Timestamp_diff']
         
         fs = np.nan
 
-        if (ky != 'Mic') and ('Mbient' not in ky):
+        if (ky == 'Eyelink') or (ky == 'Mouse'):
             # compute Sampling Rate (fs)
             if len(data[ky]['device_data']['time_stamps']) > 1:
                 fs = 1/np.median(np.diff(data[ky]['device_data']['time_stamps']))
@@ -124,6 +127,7 @@ def plot_traces(data, task, session_id):
                 axs[ix].plot(marker_ts, target_y, drawstyle='steps-post', ls='--', alpha=0.8)
                 legend_dict[ky].append('target_x')
                 legend_dict[ky].append('target_y')
+            
             elif task.split('_')[-1] == 'MOT':
                 targets_dict = _get_MOT_target_traces(data[ky]['marker'])
                 for k in targets_dict:
@@ -146,6 +150,16 @@ def plot_traces(data, task, session_id):
             title = session_id+'___'+task+'___'+ky+'\n'+'Sampling Rate = '+"{:.2f}".format(fs)+'\n'+'Sample Size = '+str(len(data[ky]['device_data']['time_series']))
             # add title to plot
             axs[ix].set_title(title, loc='left', fontsize=14)
+            # getting oculomotor task start and end times
+            for ocular_task in ['pursuit', 'fixation_no_target', 'gaze_holding', 'saccades_horizontal', 'saccades_vertical', 'DSC', 'hevelius', 'passage']:
+                if '_'.join(task.split('_')[1:]) == ocular_task:
+                    task_start_ts, task_end_ts = _get_start_end_task_times(data[ky]['marker'])
+                    if task_start_ts and task_end_ts:
+                        for start,end in zip(task_start_ts, task_end_ts):
+                            axs[ix].axvline(x=start, color='green', ls='-.', lw=2)
+                            axs[ix].axvline(x=end, color='red', ls='-.', lw=2)
+            
+            ## END of Eyelink/Mouse plotting
         elif ky == 'Mic':
             # read audio data
             audio_tstmp = data[ky]['device_data']['time_stamps']
@@ -175,13 +189,14 @@ def plot_traces(data, task, session_id):
             # add title to plot
             axs[ix].set_title(title, loc='left', fontsize=14)
             # getting vocalization task start and end times
-            for vocal_task in ['ahh', 'gogogo', 'lalala', 'mememe', 'pataka']:
+            for vocal_task in ['ahh', 'gogogo', 'lalala', 'mememe', 'pataka', 'passage']:
                 if '_'.join(task.split('_')[1:]) == vocal_task:
                     task_start_ts, task_end_ts = _get_start_end_task_times(data[ky]['marker'])
                     if task_start_ts and task_end_ts:
                         for start,end in zip(task_start_ts, task_end_ts):
                             axs[ix].axvline(x=start, color='green', ls='-.', lw=2)
                             axs[ix].axvline(x=end, color='red', ls='-.', lw=2)
+            
             ## END of Mic plotting
         elif 'Mbient' in ky:
             # compute  Sampling Rate (fs)
@@ -210,7 +225,7 @@ def plot_traces(data, task, session_id):
             axs[ix].set_title(title, loc='left', fontsize=14)
             
             # getting movement task start and end times
-            for movement_task in ['finger_nose', 'foot_tapping', 'sit_to_stand', 'altern_hand_mov', 'passage']:
+            for movement_task in ['finger_nose', 'foot_tapping', 'sit_to_stand', 'altern_hand_mov']:
                 if '_'.join(task.split('_')[1:]) == movement_task:
                     task_start_ts, task_end_ts = _get_start_end_task_times(data[ky]['marker'])
                     if task_start_ts and task_end_ts:
@@ -219,11 +234,29 @@ def plot_traces(data, task, session_id):
                             axs[ix].axvline(x=end, color='red', ls='-.', lw=2)
             
             ## END of Mbient plotting
+        elif 'Intel_D455' in ky:
+            # compute  Sampling Rate (fs)
+            if len(data[ky]['device_data']['time_stamps']) > 1:
+                fs = 1/np.median(np.diff(data[ky]['device_data']['time_stamps']))
+            
+            # only plot data if length is greater than 1
+            if len(data[ky]['device_data']['time_series']) > 1:
+                # plot timestamp diff
+                axs[ix].plot(data[ky]['device_data']['time_stamps'][:-1], np.diff(data[ky]['device_data']['time_stamps']))
+            # add legends
+            axs[ix].legend(legend_dict[ky], loc='center left', bbox_to_anchor=(1.02, 0.5))
+            # generate title
+            title = session_id+'___'+task+'___'+ky+'\n'+'Sampling Rate = '+"{:.2f}".format(fs)+'\n'+'Sample Size = '+str(len(data[ky]['device_data']['time_series']))
+            # add title to plot
+            axs[ix].set_title(title, loc='left', fontsize=14)
+            
+            ## END of Intel plotting
     return fig, axs
 
 #### Parsing command line arguments ####
 prog_desc = """Generates patient data reports as pdf files
 Requires sesssion id in the form of 'subject-id_session-date'
+--subj_id and --session_date are required arguments
 Searches default location for session data
 use -h or --help flag for help
 """
@@ -239,7 +272,7 @@ args = vars(args)
 ########################################
 
 # master device list
-devices=["Eyelink", "Mouse", "Mbient_BK", "Mbient_LF", "Mbient_LH", "Mbient_RF", "Mbient_RH", "Mic"]
+devices=["Eyelink", "Mouse", "Mbient_BK", "Mbient_LF", "Mbient_LH", "Mbient_RF", "Mbient_RH", "Mic", "Intel_D455_1", "Intel_D455_2", "Intel_D455_3"]
 
 # Reading parsed args
 session_id = args['subj_id']+'_'+args['session_date']
