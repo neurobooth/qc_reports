@@ -85,6 +85,7 @@ def plot_traces(data, task, session_id):
     data_cols['Mic'] = []
     
     fig, axs = plt.subplots(len(data.keys()), 1, sharex=True, figsize=[20,(5*(len(data.keys())+1))])
+    plt.subplots_adjust(hspace=0.3)
     if len(data.keys())==1:
         temp_list=[]
         temp_list.append(axs)
@@ -104,10 +105,13 @@ def plot_traces(data, task, session_id):
         legend_dict['Mbient_RF'] = ['acc_x', 'acc_y', 'acc_z', 'gyr_x', 'gyr_y', 'gyr_z']
         legend_dict['Mbient_RH'] = ['acc_x', 'acc_y', 'acc_z', 'gyr_x', 'gyr_y', 'gyr_z']
         legend_dict['Mic'] = ['amplitude']
+        legend_dict['Intel_D455_1'] = ['Timestamp_diff']
+        legend_dict['Intel_D455_2'] = ['Timestamp_diff']
+        legend_dict['Intel_D455_3'] = ['Timestamp_diff']
         
         fs = np.nan
 
-        if (ky != 'Mic') and ('Mbient' not in ky):
+        if (ky == 'Eyelink') or (ky == 'Mouse'):
             # compute Sampling Rate (fs)
             if len(data[ky]['device_data']['time_stamps']) > 1:
                 fs = 1/np.median(np.diff(data[ky]['device_data']['time_stamps']))
@@ -124,6 +128,7 @@ def plot_traces(data, task, session_id):
                 axs[ix].plot(marker_ts, target_y, drawstyle='steps-post', ls='--', alpha=0.8)
                 legend_dict[ky].append('target_x')
                 legend_dict[ky].append('target_y')
+            
             elif task.split('_')[-1] == 'MOT':
                 targets_dict = _get_MOT_target_traces(data[ky]['marker'])
                 for k in targets_dict:
@@ -146,6 +151,16 @@ def plot_traces(data, task, session_id):
             title = session_id+'___'+task+'___'+ky+'\n'+'Sampling Rate = '+"{:.2f}".format(fs)+'\n'+'Sample Size = '+str(len(data[ky]['device_data']['time_series']))
             # add title to plot
             axs[ix].set_title(title, loc='left', fontsize=14)
+            # getting oculomotor task start and end times
+            for ocular_task in ['pursuit', 'fixation_no_target', 'gaze_holding', 'saccades_horizontal', 'saccades_vertical', 'DSC', 'hevelius', 'passage']:
+                if '_'.join(task.split('_')[1:]) == ocular_task:
+                    task_start_ts, task_end_ts = _get_start_end_task_times(data[ky]['marker'])
+                    if task_start_ts and task_end_ts:
+                        for start,end in zip(task_start_ts, task_end_ts):
+                            axs[ix].axvline(x=start, color='green', ls='-.', lw=2)
+                            axs[ix].axvline(x=end, color='red', ls='-.', lw=2)
+            
+            ## END of Eyelink/Mouse plotting
         elif ky == 'Mic':
             # read audio data
             audio_tstmp = data[ky]['device_data']['time_stamps']
@@ -175,13 +190,14 @@ def plot_traces(data, task, session_id):
             # add title to plot
             axs[ix].set_title(title, loc='left', fontsize=14)
             # getting vocalization task start and end times
-            for vocal_task in ['ahh', 'gogogo', 'lalala', 'mememe', 'pataka']:
+            for vocal_task in ['ahh', 'gogogo', 'lalala', 'mememe', 'pataka', 'passage']:
                 if '_'.join(task.split('_')[1:]) == vocal_task:
                     task_start_ts, task_end_ts = _get_start_end_task_times(data[ky]['marker'])
                     if task_start_ts and task_end_ts:
                         for start,end in zip(task_start_ts, task_end_ts):
                             axs[ix].axvline(x=start, color='green', ls='-.', lw=2)
                             axs[ix].axvline(x=end, color='red', ls='-.', lw=2)
+            
             ## END of Mic plotting
         elif 'Mbient' in ky:
             # compute  Sampling Rate (fs)
@@ -210,7 +226,7 @@ def plot_traces(data, task, session_id):
             axs[ix].set_title(title, loc='left', fontsize=14)
             
             # getting movement task start and end times
-            for movement_task in ['finger_nose', 'foot_tapping', 'sit_to_stand', 'altern_hand_mov', 'passage']:
+            for movement_task in ['finger_nose', 'foot_tapping', 'sit_to_stand', 'altern_hand_mov']:
                 if '_'.join(task.split('_')[1:]) == movement_task:
                     task_start_ts, task_end_ts = _get_start_end_task_times(data[ky]['marker'])
                     if task_start_ts and task_end_ts:
@@ -219,11 +235,38 @@ def plot_traces(data, task, session_id):
                             axs[ix].axvline(x=end, color='red', ls='-.', lw=2)
             
             ## END of Mbient plotting
+        elif 'Intel_D455' in ky:
+            # compute  Sampling Rate (fs)
+            if len(data[ky]['device_data']['time_stamps']) > 1:
+                fs = 1/np.median(np.diff(data[ky]['device_data']['time_stamps']))
+            
+            # only plot data if length is greater than 1
+            if len(data[ky]['device_data']['time_series']) > 1:
+                # plot timestamp diff
+                axs[ix].plot(data[ky]['device_data']['time_stamps'][:-1], np.diff(data[ky]['device_data']['time_stamps']))
+            # add legends
+            axs[ix].legend(legend_dict[ky], loc='center left', bbox_to_anchor=(1.02, 0.5))
+            # generate title
+            title = session_id+'___'+task+'___'+ky+'\n'+'Sampling Rate = '+"{:.2f}".format(fs)+'\n'+'Sample Size = '+str(len(data[ky]['device_data']['time_series']))
+            # add title to plot
+            axs[ix].set_title(title, loc='left', fontsize=14)
+            
+            ## END of Intel plotting
+        elif ky == 'face_landmark':
+            # plotting whatever data is inside face landmark file - not checking for length or anything else
+            axs[ix].plot(data[ky]['device_data']['time_stamps'], data[ky]['device_data']['time_series'][:,::20,0])
+            axs[ix].plot(data[ky]['device_data']['time_stamps'], data[ky]['device_data']['time_series'][:,::20,1])
+            # generate title
+            title = session_id+'__'+task+'__'+ky+'\n'+'Num of frames = '+str(len(data[ky]['device_data']['time_series']))
+            # add title to plot
+            axs[ix].set_title(title, loc='left', fontsize=14)
+            ## END of Face Landmark plotting
     return fig, axs
 
 #### Parsing command line arguments ####
 prog_desc = """Generates patient data reports as pdf files
 Requires sesssion id in the form of 'subject-id_session-date'
+--subj_id and --session_date are required arguments
 Searches default location for session data
 use -h or --help flag for help
 """
@@ -239,7 +282,7 @@ args = vars(args)
 ########################################
 
 # master device list
-devices=["Eyelink", "Mouse", "Mbient_BK", "Mbient_LF", "Mbient_LH", "Mbient_RF", "Mbient_RH", "Mic"]
+devices=["Eyelink", "Mouse", "Mbient_BK", "Mbient_LF", "Mbient_LH", "Mbient_RF", "Mbient_RH", "Mic", "Intel_D455_1", "Intel_D455_2", "Intel_D455_3", "face_landmark"]
 
 # Reading parsed args
 session_id = args['subj_id']+'_'+args['session_date']
@@ -261,7 +304,25 @@ print(f'\n  Following tasks found:\n')
 _ = [print(' ',pt) for pt in performed_tasks]
 print()
 
+# reading face landmarks
+print('\n  Searching for face landmark data in :', args['processed_data_dir'])
+landmark_path = op.join(args['processed_data_dir'], session_id)
+
+landmark_files = []
+if op.exists(landmark_path):
+    for (dirpath, dirnames, filenames) in walk(landmark_path):
+        landmark_files.extend(filenames)
+        break
+    
+    landmark_tasks = ['_'.join(task_session.split('_')[2:]) for task_session in list(dict.fromkeys([fname.split('_obs')[0] for fname in landmark_files if fname.endswith('face_landmarks.hdf5')]))]
+    print(f'\n  Following face landmarks found:\n')
+    _ = [print(' ',lt) for lt in landmark_tasks]
+    print()
+else:
+    print(f'\n  Could not find {session_id} face landmark data in {landmark_path}\n\n')
+
 # generating figures
+print('\n  Generating report...\n\n')
 figure_list=[]
 for task in performed_tasks:
     
@@ -283,46 +344,15 @@ for task in performed_tasks:
         for file in files_to_parse:
             if device in file:
                 data.update({device: read_hdf5(op.join(session_path, file))})
+
+    # get face landmark file from all session face landmark files and read into data_dictionary
+    for file in landmark_files:
+        if task in file:
+            data.update({"face_landmark": read_hdf5(op.join(landmark_path, file))})
+
     print(f'  Plotting {task} data')
     fig, axs = plot_traces(data, task, session_id)
     figure_list.append(fig)
-
-# plotting landmarks
-print('\n  Searching for landmark data in :', args['processed_data_dir'])
-landmark_path = op.join(args['processed_data_dir'], session_id)
-
-plot_landmarks = False
-if op.exists(landmark_path):
-    plot_landmarks = True
-    fnames = []
-    for (dirpath, dirnames, filenames) in walk(landmark_path):
-        fnames.extend(filenames)
-        break
-else:
-    print(f'\n  Could not find {session_id} landmark data in {landmark_path}\n\n  Saving any plotted data\n\n')
-
-if plot_landmarks:
-    # might need to change this later to only read 'face_landmarks.hdf5' and read arm_landmarks separately
-    landmark_tasks = ['_'.join(task_session.split('_')[2:]) for task_session in list(dict.fromkeys([fname.split('_obs')[0] for fname in fnames if fname[-5:]=='.hdf5']))]
-    print(f'\n  Following landmarks found:\n')
-    _ = [print(' ',lt) for lt in landmark_tasks]
-    print()
-    landmark_fig, axs = plt.subplots(len(fnames), 1, figsize=[20, 5*len(fnames)])
-    if len(fnames)==1:
-        temp_list=[]
-        temp_list.append(axs)
-        axs = temp_list
-    for ax in axs:
-        ax.set_rasterized(True)
-
-    for ix, fname in enumerate(fnames):
-        print(f'  Plotting {landmark_tasks[ix]} Face Landmarks')
-        landmark_data = read_hdf5(os.path.join(landmark_path, fname))['device_data']
-        axs[ix].plot(landmark_data['time_series'][:,::20,0])
-        axs[ix].plot(landmark_data['time_series'][:,::20,1])
-        title = session_id+'__'+landmark_tasks[ix]+'__'+'Face-Landmarks'
-        axs[ix].set_title(title, loc='left', fontsize=14)
-    figure_list.append(landmark_fig)
 
 # saving pdf
 print('\n  Saving pdf report...')
