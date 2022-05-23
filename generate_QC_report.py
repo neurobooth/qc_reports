@@ -1,4 +1,3 @@
-import sys
 import os
 import os.path as op
 from os import walk
@@ -371,7 +370,10 @@ for session_id in dnames:
         # get face landmark file from all session face landmark files and read into data_dictionary
         for file in landmark_files:
             if task in file:
-                data.update({"face_landmark": read_hdf5(op.join(landmark_path, file))})
+                try:
+                    data.update({"face_landmark": read_hdf5(op.join(landmark_path, file))})
+                except:
+                    print('\n  Could not read hdf5 file :', op.join(landmark_path, file))
 
         print(f'  Plotting {task} data')
         try:
