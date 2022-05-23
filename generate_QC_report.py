@@ -83,7 +83,7 @@ def plot_traces(data, task, session_id):
     data_cols['Mbient_RH'] = [1,2,3,4,5,6]
     data_cols['Mic'] = []
     
-    fig, axs = plt.subplots(len(data.keys()), 1, sharex=False, figsize=[20,(5*(len(data.keys())+1))])
+    fig, axs = plt.subplots(len(data.keys()), 1, sharex=True, figsize=[20,(5*(len(data.keys())+1))])
     plt.subplots_adjust(hspace=0.3)
     if len(data.keys())==1:
         temp_list=[]
@@ -253,8 +253,8 @@ def plot_traces(data, task, session_id):
             ## END of Intel plotting
         elif ky == 'face_landmark':
             # plotting whatever data is inside face landmark file - not checking for length or anything else
-            axs[ix].plot(data[ky]['device_data']['time_series'][:,::20,0])
-            axs[ix].plot(data[ky]['device_data']['time_series'][:,::20,1])
+            axs[ix].plot(data[ky]['device_data']['time_stamps'], data[ky]['device_data']['time_series'][:,::20,0])
+            axs[ix].plot(data[ky]['device_data']['time_stamps'], data[ky]['device_data']['time_series'][:,::20,1])
             # generate title
             title = session_id+'__'+task+'__'+ky+'\n'+'Num of frames = '+str(len(data[ky]['device_data']['time_series']))
             # add title to plot
