@@ -369,7 +369,7 @@ for session_id in dnames:
         
         # get face landmark file from all session face landmark files and read into data_dictionary
         for file in landmark_files:
-            if task in file:
+            if task in file and file[-5:]=='.hdf5':
                 try:
                     data.update({"face_landmark": read_hdf5(op.join(landmark_path, file))})
                 except:
