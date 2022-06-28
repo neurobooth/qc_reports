@@ -168,14 +168,20 @@ def plot_traces(data, task, session_id):
             audio_tstmp = data[ky]['device_data']['time_stamps']
             audio_ts = data[ky]['device_data']['time_series']
             chunk_len = audio_ts.shape[1]
-            
+
+            # accounting for later addition of time in timeseries data - audio chunks are of length 1025 instead of 1024 
+            if chunk_len %2:
+                chunk_len -= 1
+                audio_ts_full = np.hstack(audio_ts[:,1:])
+            else:
+                audio_ts_full = np.hstack(audio_ts)
+
             # restructure audio data
             audio_tstmp = np.insert(audio_tstmp, 0, audio_tstmp[0] - np.diff(audio_tstmp).mean())
             tstmps = []
             for i in range(audio_ts.shape[0]):
                 tstmps.append(np.linspace(audio_tstmp[i], audio_tstmp[i+1], chunk_len))
             audio_tstmp_full = np.hstack(tstmps)
-            audio_ts_full = np.hstack(audio_ts)
             
             # compute  Sampling Rate (fs)
             if len(data[ky]['device_data']['time_stamps']) > 1:
