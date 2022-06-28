@@ -108,6 +108,8 @@ def plot_traces(data, task, session_id):
         legend_dict['Intel_D455_1'] = ['Timestamp_diff']
         legend_dict['Intel_D455_2'] = ['Timestamp_diff']
         legend_dict['Intel_D455_3'] = ['Timestamp_diff']
+        legend_dict['FLIR'] = ['Timestamp_diff']
+        legend_dict['IPhone'] = ['Timestamp_diff']
         
         fs = np.nan
 
@@ -235,7 +237,7 @@ def plot_traces(data, task, session_id):
                             axs[ix].axvline(x=end, color='red', ls='-.', lw=2)
             
             ## END of Mbient plotting
-        elif 'Intel_D455' in ky:
+        elif ('Intel_D455' in ky) or (ky == 'FLIR') or (ky == 'IPhone'):
             # compute  Sampling Rate (fs)
             if len(data[ky]['device_data']['time_stamps']) > 1:
                 fs = 1/np.median(np.diff(data[ky]['device_data']['time_stamps']))
@@ -282,7 +284,7 @@ args = vars(args)
 ########################################
 
 # master device list
-devices=["Eyelink", "Mouse", "Mbient_BK", "Mbient_LF", "Mbient_LH", "Mbient_RF", "Mbient_RH", "Mic", "Intel_D455_1", "Intel_D455_2", "Intel_D455_3", "face_landmark"]
+devices=["Eyelink", "Mouse", "Mbient_BK", "Mbient_LF", "Mbient_LH", "Mbient_RF", "Mbient_RH", "Mic", "Intel_D455_1", "Intel_D455_2", "Intel_D455_3", "FLIR", "IPhone", "face_landmark"]
 
 # Reading parsed args
 session_id = args['subj_id']+'_'+args['session_date']
