@@ -246,13 +246,47 @@ def plot_traces(data, task, session_id):
             # compute  Sampling Rate (fs)
             if len(data[ky]['device_data']['time_stamps']) > 1:
                 fs = 1/np.median(np.diff(data[ky]['device_data']['time_stamps']))
-            
+            # color as per sensor
+            if 'Intel_D455' in ky:
+                colour = 'green'
+            if ky == 'FLIR':
+                colour = 'orange'
+            if ky == 'IPhone':
+                colour = 'lightblue'
             # only plot data if length is greater than 1
             if len(data[ky]['device_data']['time_series']) > 1:
+                # Hide subplot box
+                axs[ix].xaxis.set_visible(False)
+                axs[ix].yaxis.set_visible(False)
+                _ = [s.set_visible(False) for s in axs[ix].spines.values()]
+                # Create inset axes
+                ax1ins = inset_axes(axs[ix], width="99%", height="45%", loc=2) # location - upper left corner
+                ax2ins = inset_axes(axs[ix], width="99%", height="45%", loc=3) # location - lower left corner
                 # plot timestamp diff
-                axs[ix].plot(data[ky]['device_data']['time_stamps'][:-1], np.diff(data[ky]['device_data']['time_stamps']))
-            # add legends
-            axs[ix].legend(legend_dict[ky], loc='center left', bbox_to_anchor=(1.02, 0.5))
+                ax1ins.plot(data[ky]['device_data']['time_stamps'][:-1], np.diff(data[ky]['device_data']['time_stamps']), color=colour)
+                ax2ins.plot(data[ky]['device_data']['time_stamps'][:-1], np.diff(data[ky]['device_data']['time_stamps']), color=colour)
+                # set ylims
+                ax1ins.set_ylim(0.002*(1000/fs), 1.)  # outliers only
+                ax2ins.set_ylim(0, 0.002*(1000/fs))  # most of the data
+                # hide appropriate spines and ticks
+                ax1ins.spines['bottom'].set_visible(False)
+                ax2ins.spines['top'].set_visible(False)
+                ax1ins.xaxis.set_visible(False)
+                # Add inset labels
+                ax2ins.set_ylabel('ms')
+                ax2ins.axhline(y=(1000/fs)/1000, xmin=0, xmax=1, ls='--', color='black', alpha=0.5, label='median tdiff (ms) = '+str(round((1000/fs)/1000,3)))
+                #  add legends
+                ax2ins.legend(loc='lower right')
+                # add left and right spine diagonals
+                d = .004  # how big to make the diagonal lines in axes coordinates
+                # arguments to pass to plot, just so we don't keep repeating them
+                kwargs = dict(transform=ax1ins.transAxes, color='k', clip_on=False)
+                ax1ins.plot((-d, +d), (-d, +d), **kwargs)        # top-left diagonal
+                ax1ins.plot((1 - d, 1 + d), (-d, +d), **kwargs)  # top-right diagonal
+
+                kwargs.update(transform=ax2ins.transAxes)  # switch to the bottom axes
+                ax2ins.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # bottom-left diagonal
+                ax2ins.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # bottom-right diagonal
             # generate title
             title = session_id+'___'+task+'___'+ky+'\n'+'Sampling Rate = '+"{:.2f}".format(fs)+'\n'+'Sample Size = '+str(len(data[ky]['device_data']['time_series']))
             # add title to plot
