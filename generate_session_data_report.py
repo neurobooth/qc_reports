@@ -372,7 +372,7 @@ for task in performed_tasks:
     # get files for task from all session files
     task_files=[]
     for file in fnames:
-        if task in file and file[-5:]=='.hdf5':
+        if task in file and 'jitter' not in file and file[-5:]=='.hdf5':
             task_files.append(file)
     
     # select files that will be parsed
