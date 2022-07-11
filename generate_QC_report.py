@@ -6,6 +6,7 @@ import numpy as np
 from h5io import read_hdf5
 import matplotlib.pyplot as plt
 import matplotlib.backends.backend_pdf
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 plt.rcParams['figure.dpi'] = 150
 
