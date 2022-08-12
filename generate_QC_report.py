@@ -339,6 +339,8 @@ for session_id in dnames:
         print(f'\n  {session_id}_session_data_report.pdf already exists! Looking for face landmark data...')
         if op.exists(landmark_path):
             print('\n  Face landmark data found - Replotting all data')
+            print('  --- Actually, cancel that - Moving to the next Session_Id')
+            continue
         else:
             print('\n  No face landmark data found - Moving to the next Session_Id')
             continue
