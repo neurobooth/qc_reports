@@ -1,0 +1,8 @@
+setuptools
+pandas
+numpy
+matplotlib
+scipy
+h5io
+sqlalchemy
+psycopg2
