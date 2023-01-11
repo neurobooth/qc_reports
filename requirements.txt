@@ -1,8 +1,11 @@
-setuptools
-pandas
-numpy
-matplotlib
+setuptools~=65.5.0
+pandas~=1.5.2
+numpy~=1.22.4
+matplotlib~=3.6.2
 scipy
-h5io
-sqlalchemy
+h5io~=0.1.7
+sqlalchemy~=1.4.39
 psycopg2
+tqdm~=4.64.1
+fpdf2
+pillow

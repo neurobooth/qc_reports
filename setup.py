@@ -19,8 +19,8 @@ setup(
     include_package_data=True,
     entry_points={
         'console_scripts': [
-            'device_timing_report=neurobooth_reports.device_timing_report:main',
-            'prom_completion_report=neurobooth_reports.prom_completion_report:main'
+            'device_timing_report=neurobooth_reports.scripts.device_timing_report:main',
+            'prom_completion_report=neurobooth_reports.scripts.prom_completion_report:main'
         ],
     },
 )
