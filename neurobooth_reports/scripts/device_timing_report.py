@@ -175,7 +175,10 @@ def device_page_yeti(pdf: TaskReport, file: FileMetadata) -> None:
 
 
 def device_page_iphone(pdf: TaskReport, file: FileMetadata) -> None:
-    data = hdf5.extract_iphone(hdf5.load_neurobooth_file(file), include_event_flags=False)
+    try:
+        data = hdf5.extract_iphone(hdf5.load_neurobooth_file(file), include_event_flags=False)
+    except DataException as e:
+        pdf.cell(w=pdf.epw, txt=f'ERROR: {e.args[0]}', align='C')
 
     json_file = discover_associated_files(file, extensions=['.json'])
     if len(json_file) > 1:
