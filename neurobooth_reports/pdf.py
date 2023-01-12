@@ -7,6 +7,7 @@ from PIL import Image
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import matplotlib.pyplot as plt
+
 from neurobooth_analysis_tools.data.types import NeuroboothTask, NeuroboothDevice
 
 
@@ -17,6 +18,7 @@ class Report(fpdf.FPDF):
             kwargs['orientation'] = 'portrait'
         if 'format' not in kwargs:
             kwargs['format'] = 'letter'
+        kwargs['unit'] = 'mm'
         super(Report, self).__init__(*args, **kwargs)
         self.default_font()
 
@@ -33,14 +35,37 @@ class Report(fpdf.FPDF):
         if close:
             plt.close(fig)
 
-    def default_font(self):
+    def default_font(self) -> None:
         self.set_font('Helvetica', size=10)
 
-    def footer_font(self):
+    def footer_font(self) -> None:
         self.default_font()
 
-    def header_font(self):
+    def header_font(self) -> None:
         self.set_font('Helvetica', style='B', size=14)
+
+    def make_footer(self, text: str = '', text_ratio: float = 0.8, horiz_rule: bool = True) -> None:
+        if horiz_rule:
+            self.set_y(-12)
+            self.cell(w=0, border="T")
+
+        self.set_y(-10)
+        self.footer_font()
+
+        # Put the given text on the left
+        self.set_x(self.l_margin)
+        self.cell(w=self.epw * text_ratio, txt=text, align='L')
+
+        # Put page on the right
+        page_str = f'Page {self.page_no()} / {{nb}}'
+        self.cell(w=self.epw * (1-text_ratio), txt=page_str, align='R')
+
+    def add_page_with_title(self, title: str) -> None:
+        self.add_page()
+        self.header_font()
+        self.cell(w=self.epw, txt=title, align='C')
+        self.default_font()
+        self.set_y(16)
 
 
 class SessionReport(Report):
@@ -49,12 +74,8 @@ class SessionReport(Report):
         super(SessionReport, self).__init__(*args, **kwargs)
         self.session_id = session_id
 
-    def footer(self):
-        self.set_y(-15)
-        self.set_x(self.l_margin)
-        self.cell(txt=f'Session f{self.session_id}', align='L')
-        self.set_x(self.l_margin)
-        self.cell(txt=f'Page {self.page_no()}/{{nb}}', align='R')
+    def footer(self) -> None:
+        self.make_footer(f'Session {self.session_id}')
 
 
 class TaskReport(Report):
@@ -65,25 +86,10 @@ class TaskReport(Report):
         self.task = task
 
     def add_device_page(self, device: NeuroboothDevice, device_info: str):
-        self.add_page()
-        self.header_font()
-        device_info = f' ({device_info})' if device_info else ''
-        self.cell(w=self.epw, txt=f'{device.name}{device_info}', align='C')
+        header_str = device.name
+        if device == NeuroboothDevice.RealSense:
+            header_str = device_info
+        self.add_page_with_title(header_str)
 
-    def footer(self):
-        # Horizontal Rule
-        self.set_y(-12)
-        self.cell(w=0, border="T")
-
-        self.set_y(-10)
-        self.footer_font()
-        margin_width = self.r_margin - self.l_margin
-
-        # Session/task info on the left
-        info_str = f'Session {self.session_id}  ({self.task.name})'
-        self.set_x(self.l_margin)
-        self.cell(w=margin_width/2, txt=info_str, align='L')
-
-        # Page info on the right
-        page_str = f'Page {self.page_no()} / {{nb}}'
-        self.cell(w=margin_width/2, txt=page_str, align='R')
+    def footer(self) -> None:
+        self.make_footer(f'Session {self.session_id}  ({self.task.name})')
