@@ -15,6 +15,9 @@ def time_offset_plot(
         ts2_name: str = 'Time 2'
 ) -> None:
     diff = ts2 - ts1
+    if diff.shape[0] == 0:
+        return
+
     ax.plot(diff, linewidth=1)
     ax.axhline(diff.mean(), linestyle='--', linewidth=0.5, color='k')
     ax.set_xlabel('Sample #')
@@ -23,6 +26,9 @@ def time_offset_plot(
 
 def time_stability_plot(ax: plt.Axes, ts: np.ndarray, window_width_sec: float = 1) -> None:
     ts_diff = np.diff(ts)
+    if ts_diff.shape[0] == 0:
+        return
+
     n_sample = int(round(1 / ts_diff.mean()) * window_width_sec)
     if n_sample % 2 == 0:  # Want odd window for convolution
         n_sample += 1

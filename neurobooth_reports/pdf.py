@@ -89,6 +89,8 @@ class TaskReport(Report):
         header_str = device.name
         if device == NeuroboothDevice.RealSense:
             header_str = device_info
+        elif device == NeuroboothDevice.Mbient:
+            header_str = f'{header_str} ({device_info})'
         self.add_page_with_title(header_str)
 
     def footer(self) -> None:

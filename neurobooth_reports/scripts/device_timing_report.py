@@ -1,15 +1,17 @@
 """
 Generate PDF reports of device timing information.
 """
-import matplotlib
-import matplotlib.pyplot as plt
-import os
-from collections import defaultdict
 
+import os
+import argparse
+import numpy as np
 import pandas as pd
 from typing import Dict, List
-from tqdm import tqdm
-from datetime import datetime
+from tqdm.contrib.concurrent import process_map
+import datetime
+from collections import defaultdict
+import matplotlib
+import matplotlib.pyplot as plt
 
 from neurobooth_analysis_tools.data.files import default_source_directories, discover_session_directories
 from neurobooth_analysis_tools.data.files import FileMetadata, parse_files, parse_session_id, discover_associated_files
@@ -37,22 +39,86 @@ DEVICE_ORDER: Dict[NeuroboothDevice, int] = defaultdict(lambda d: d.value + 1e4,
 })
 
 
-# How many days after a session to continue re-generating reports (to account for partial uploads)
-RERUN_DAYS = 3
-
-
 def main() -> None:
+    args = parse_arguments()
     settings = ReportSettings()
     sessions, session_dirs = discover_session_directories(default_source_directories())
-    # TODO: Add potential filter for subject/date here
+    sessions, session_dirs = np.array(sessions), np.array(session_dirs)
+
+    sort_idx = np.argsort(sessions)
+    sessions = sessions[sort_idx]
+    session_dirs = session_dirs[sort_idx]
+
+    if args.subject is not None:
+        mask = np.array([parse_session_id(s)[0] for s in sessions]) == args.subject
+        sessions = sessions[mask]
+        session_dirs = session_dirs[mask]
+
+    if args.date is not None:
+        mask = np.array([parse_session_id(s)[1] for s in sessions]) == args.date
+        sessions = sessions[mask]
+        session_dirs = session_dirs[mask]
+
+    if sessions.shape[0] == 0:
+        print('No sessions meet filter criteria!')
 
     matplotlib.rcParams.update({'font.size': 8})
-    for s, sdir in tqdm(zip(sessions, session_dirs), desc="Generating timing reports", unit='sessions'):
-        generate_session_reports(s, sdir, settings)
-        return  # TODO: Remove
+    process_map(
+        generate_session_reports,
+        [str(s) for s in sessions],
+        [str(sdir) for sdir in session_dirs],
+        [settings for _ in range(sessions.shape[0])],
+        [args.rerun_days for _ in range(sessions.shape[0])],
+        desc='Generating timing reports',
+        unit='sessions',
+        chunksize=1,
+        max_workers=args.n_cpu,
+    )
 
 
-def generate_session_reports(session: str, session_dir: str, settings: ReportSettings) -> None:
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate device timing reports.")
+
+    group = parser.add_argument_group(title="General Options")
+    group.add_argument(
+        '--rerun-days',
+        type=int,
+        default=3,
+        help="Always rerun reports for session dates less than this many days ago."
+    )
+    group.add_argument(
+        '--n-cpu',
+        type=int,
+        default=4,
+        help="How many parallel processes to run when generating reports."
+    )
+
+    group = parser.add_argument_group(
+        title="Filters",
+        description="Only generate reports that match the specified criteria."
+    )
+    group.add_argument(
+        '--subject',
+        type=str,
+        default=None,
+        help="Only generate reports for the given subject."
+    )
+    group.add_argument(
+        '--date',
+        type=datetime.date.fromisoformat,
+        default=None,
+        help="Only generate reports for the given session date."
+    )
+
+    return parser.parse_args()
+
+
+def generate_session_reports(
+        session: str,
+        session_dir: str,
+        settings: ReportSettings,
+        rerun_days: int,
+) -> None:
     file_metadata = parse_files(session_dir)
     file_metadata = filter(lambda f: f.extension == '.hdf5', file_metadata)
     file_metadata = sorted(file_metadata, key=lambda f: (f.task.value, DEVICE_ORDER[f.device], f.device_info))
@@ -61,11 +127,11 @@ def generate_session_reports(session: str, session_dir: str, settings: ReportSet
 
     report_dir = os.path.join(settings.report_dir, session)
     report_paths = {task: os.path.join(report_dir, f'timing_report_{task.name}.pdf') for task in tasks}
-    if not should_run_reports(session, list(report_paths.values())):
+    if not should_run_reports(session, list(report_paths.values()), rerun_days):
         return
 
     make_directory(report_dir)
-    for task, report_path in tqdm(report_paths.items(), desc='Creating Report', unit='tasks', leave=False):
+    for task, report_path in report_paths.items():
         task_files = list(filter(lambda f: f.task == task, file_metadata))
 
         pdf = TaskReport(session, task)
@@ -74,9 +140,9 @@ def generate_session_reports(session: str, session_dir: str, settings: ReportSet
         pdf.output(report_path)
 
 
-def should_run_reports(session: str, report_paths: List[str]) -> bool:
+def should_run_reports(session: str, report_paths: List[str], rerun_days: int) -> bool:
     _, session_date = parse_session_id(session)
-    if (datetime.now() - session_date).days <= RERUN_DAYS:
+    if (datetime.datetime.today() - session_date).days <= rerun_days:
         return True  # Always re-run reports for recent sessions to catch missing data
 
     missing_report = not all([os.path.exists(path) for path in report_paths])
@@ -95,7 +161,11 @@ def create_device_page(pdf: TaskReport, file: FileMetadata) -> None:
 
 def device_page_yeti(pdf: TaskReport, file: FileMetadata) -> None:
     pdf.add_device_page(file.device, file.device_info)
-    data = hdf5.extract_yeti(hdf5.load_neurobooth_file(file), include_event_flags=False)
+    try:
+        data = hdf5.extract_yeti(hdf5.load_neurobooth_file(file), include_event_flags=False)
+    except DataException as e:
+        pdf.cell(w=pdf.epw, txt=f'ERROR: {e.args[0]}', align='C')
+        return
 
     fig, ax = plt.subplots(1, 1, figsize=figsize_mm(pdf.epw, pdf.epw/3))
     time_stability_plot(ax, data['Time_LSL'])
