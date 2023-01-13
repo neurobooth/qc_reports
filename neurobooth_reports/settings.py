@@ -21,7 +21,12 @@ class ReportSettings:
         config = ReportSettings.load_config(config_file)
 
         self.report_dir = os.path.abspath(config['report_dir'])
+        if not os.path.exists(self.report_dir):
+            os.makedirs(self.report_dir)
+
         self.summary_dir = os.path.join(self.report_dir, '__SUMMARY__')
+        if not os.path.exists(self.summary_dir):
+            os.makedirs(self.summary_dir)
 
         with open(os.path.abspath(config['secrets']), 'r') as f:
             secrets = json.load(f)
