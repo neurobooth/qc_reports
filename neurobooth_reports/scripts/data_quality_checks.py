@@ -46,35 +46,40 @@ class IssueLogger:
 
 def main():
     settings = ReportSettings()
-    logger = IssueLogger(settings)
 
-    _, session_dirs = nb_file.discover_session_directories(nb_file.default_source_directories())
+    sessions, session_dirs = nb_file.discover_session_directories(nb_file.default_source_directories())
     file_metadata = [nb_file.parse_files(sdir) for sdir in session_dirs]
-    file_metadata = list(chain(*file_metadata))  # Flatten list
+    file_metadata = chain(*file_metadata)  # Flatten list
+    file_metadata = list(sorted(file_metadata, key=lambda m: (m.subject_id, m.datetime, m.task, m.device)))
+    hdf_files = list(filter(lambda f: f.extension == '.hdf5', file_metadata))
 
-    check_task_instr_markers(file_metadata, logger)
-
-
-def check_task_instr_markers(files: List[nb_file.FileMetadata], logger: IssueLogger) -> None:
-    files = list(filter(lambda f: f.extension == '.hdf5', files))
-    issues = process_map(
-        process_check_task_instr_marker,
-        files,
+    logger = IssueLogger(settings)
+    for issues in process_map(  # Write issues to file as the batches resolve
+        run_hdf_checks,
+        hdf_files,
         desc='Checking Task/Instr Markers',
         unit='files',
         chunksize=BATCH_SIZE,
-    )
-    logger.write_issues(issues)
+    ):
+        logger.write_issues(issues)
 
 
-def process_check_task_instr_marker(
+def run_hdf_checks(file: nb_file.FileMetadata) -> List[Optional[Issue]]:
+    """Run all the data-related checks in a way that only loads the files once."""
+    device = nb_hdf.load_neurobooth_file(file)
+    return [
+        check_task_instr_marker(file, device),
+    ]
+
+
+def check_task_instr_marker(
         file: nb_file.FileMetadata,
+        device: nb_hdf.Device,
         test_id: str = 'check_task_instr_marker',
 ) -> Optional[Issue]:
     """Ensure that an HDF5 file includes markers for task and instruction beginning and end."""
-    dev = nb_hdf.load_neurobooth_file(file)
     try:
-        nb_hdf.extract_task_boundaries(dev)
+        nb_hdf.extract_task_boundaries(device)
     except DataException as e:
         return Issue(
             test_id=test_id,
@@ -83,7 +88,7 @@ def process_check_task_instr_marker(
         )
 
     try:
-        nb_hdf.extract_instruction_boundaries(dev)
+        nb_hdf.extract_instruction_boundaries(device)
     except DataException as e:
         return Issue(
             test_id=test_id,
