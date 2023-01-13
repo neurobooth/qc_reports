@@ -1,4 +1,5 @@
 {
   "secrets": "/space/neo/3/neurobooth/applications/neurobooth-reports/secrets.json",
+  "mailing_list": "/space/neo/3/neurobooth/applications/neurobooth-reports/email_list.json",
   "report_dir": "/space/neo/3/neurobooth/reports/"
 }

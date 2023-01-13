@@ -133,3 +133,6 @@ dmypy.json
 
 # Secrets
 secrets.json
+
+# Likely-to-change config files
+email_list.json

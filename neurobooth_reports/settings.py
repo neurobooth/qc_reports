@@ -4,10 +4,16 @@ Parse package-wide settings and secrets
 
 import os
 import json
-from typing import Optional, Dict
+from typing import NamedTuple, Optional, Dict, List
 from importlib import resources
 import neurobooth_reports
 from neurobooth_analysis_tools.data.database import DatabaseConnectionInfo
+
+
+class EmailSettings(NamedTuple):
+    subject_prefix: str
+    from_addr: str
+    to_addr: List[str]
 
 
 class ReportSettings:
@@ -21,6 +27,8 @@ class ReportSettings:
             secrets = json.load(f)
         self.database_connection_info = DatabaseConnectionInfo(**secrets['database'])
 
+        self.email = self._load_email_settings(os.path.abspath(config['mailing_list']))
+
     @staticmethod
     def load_config(config_file: Optional[str] = None) -> Dict:
         if config_file is None:
@@ -28,3 +36,22 @@ class ReportSettings:
         else:
             with open(config_file, 'r') as f:
                 return json.load(f)
+
+    def _load_email_settings(self, mailing_list_path: str) -> EmailSettings:
+        # Create an empty file if it does not currently exist
+        if not os.path.exists(mailing_list_path):
+            with open(mailing_list_path, 'w') as f:
+                json.dump({
+                    "Subject Prefix": "[Neurobooth] ",
+                    "From": "",
+                    "To": [""],
+                }, f)
+
+        with open(mailing_list_path, 'r') as f:
+            mailing_list = json.load(f)
+
+        return EmailSettings(
+            subject_prefix=mailing_list['Subject Prefix'],
+            from_addr=mailing_list['From'],
+            to_addr=mailing_list['To']
+        )

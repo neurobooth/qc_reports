@@ -20,7 +20,8 @@ setup(
     entry_points={
         'console_scripts': [
             'device_timing_report=neurobooth_reports.scripts.device_timing_report:main',
-            'prom_completion_report=neurobooth_reports.scripts.prom_completion_report:main'
+            'prom_completion_report=neurobooth_reports.scripts.prom_completion_report:main',
+            'data_quality_checks=neurobooth_reports.scripts.data_quality_checks:main'
         ],
     },
 )
