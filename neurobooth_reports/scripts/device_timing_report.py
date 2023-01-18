@@ -6,7 +6,7 @@ import os
 import argparse
 import numpy as np
 import pandas as pd
-from typing import Dict, List
+from typing import Optional, Callable, Dict, List, Tuple
 from tqdm.contrib.concurrent import process_map
 import datetime
 from collections import defaultdict
@@ -19,6 +19,7 @@ from neurobooth_analysis_tools.data.types import NeuroboothDevice, DataException
 import neurobooth_analysis_tools.data.hdf5 as hdf5
 from neurobooth_analysis_tools.data.json import parse_iphone_json
 from neurobooth_analysis_tools.io import make_directory
+from neurobooth_analysis_tools.plot.shade import shade_mask
 
 from neurobooth_reports.settings import ReportSettings
 from neurobooth_reports.pdf import TaskReport
@@ -155,30 +156,69 @@ def create_device_page(pdf: TaskReport, file: FileMetadata) -> None:
         device_page_yeti(pdf, file)
     elif device == NeuroboothDevice.IPhone:
         device_page_iphone(pdf, file)
+    elif device == NeuroboothDevice.EyeLink:
+        device_page_eyelink(pdf, file)
     else:
         device_page_unimplemented(pdf, file)
 
 
+def extract_data(pdf: TaskReport, file: FileMetadata, extract_func: Callable) -> Tuple[bool, Optional[pd.DataFrame]]:
+    try:
+        device = hdf5.load_neurobooth_file(file)
+        if device.data.time_series.shape[0] == 0 or device.data.time_series.shape[0] == 1:
+            pdf.cell(w=pdf.epw, txt=f'ERROR: Insufficient time-series data.', align='C')
+            return False, None
+        data = extract_func(device, include_event_flags=False)
+    except Exception as e:
+        pdf.cell(w=pdf.epw, txt=f'ERROR: {e.args[0]}', align='C')
+        return False, None
+
+    # Don't try to parse instruction/task period if marker data is missing
+    if device.marker.time_series.shape[0] == 0:
+        return True, data
+
+    try:
+        data['Flag_Instructions'] = hdf5.create_instruction_mask(device, data['Time_LSL'])
+    except DataException:
+        pass
+
+    try:
+        data['Flag_Task'] = hdf5.create_task_mask(device, data['Time_LSL'])
+    except DataException:
+        pass
+
+    return True, data
+
+
+def plot_event_shading(ax: plt.Axes, data: pd.DataFrame):
+    ts = np.arange(data.shape[0])
+    if 'Flag_Instructions' in data.columns:
+        plot_kws = {'color': 'g', 'alpha': 0.3}
+        shade_mask(ax, data['Flag_Instructions'], ts, plot_kws=plot_kws)
+    if 'Flag_Task' in data.columns:
+        plot_kws = {'color': 'y', 'alpha': 0.3}
+        shade_mask(ax, data['Flag_Task'], ts, plot_kws=plot_kws)
+
+
 def device_page_yeti(pdf: TaskReport, file: FileMetadata) -> None:
     pdf.add_device_page(file.device, file.device_info)
-    try:
-        data = hdf5.extract_yeti(hdf5.load_neurobooth_file(file), include_event_flags=False)
-    except DataException as e:
-        pdf.cell(w=pdf.epw, txt=f'ERROR: {e.args[0]}', align='C')
+    success, data = extract_data(pdf, file, hdf5.extract_yeti)
+    if not success:
         return
 
     fig, ax = plt.subplots(1, 1, figsize=figsize_mm(pdf.epw, pdf.epw/3))
     time_stability_plot(ax, data['Time_LSL'])
+    plot_event_shading(ax, data)
     ax.set_title('Interpolated LSL Time')
     fig.tight_layout()
     pdf.add_figure(fig, close=True, full_width=True)
 
 
 def device_page_iphone(pdf: TaskReport, file: FileMetadata) -> None:
-    try:
-        data = hdf5.extract_iphone(hdf5.load_neurobooth_file(file), include_event_flags=False)
-    except DataException as e:
-        pdf.cell(w=pdf.epw, txt=f'ERROR: {e.args[0]}', align='C')
+    pdf.add_device_page(file.device, file.device_info)
+    success, data = extract_data(pdf, file, hdf5.extract_iphone)
+    if not success:
+        return
 
     json_file = discover_associated_files(file, extensions=['.json'])
     if len(json_file) > 1:
@@ -190,7 +230,6 @@ def device_page_iphone(pdf: TaskReport, file: FileMetadata) -> None:
     ############################################################
     # Timing Variability
     ############################################################
-    pdf.add_device_page(file.device, file.device_info)
     comparisons = [('Time_JSON', 'Time_iPhone'), ('Time_iPhone', 'Time_Unix'), ('Time_Unix', 'Time_LSL')]
     fig_width, fig_height = pdf.epw, pdf.epw / 3 * len(comparisons)
     fig, axs = plt.subplots(len(comparisons), 1, figsize=figsize_mm(fig_width, fig_height))
@@ -199,6 +238,7 @@ def device_page_iphone(pdf: TaskReport, file: FileMetadata) -> None:
         if t1 not in data.columns or t2 not in data.columns:
             continue
         time_offset_plot(ax, data[t1], data[t2], t1, t2)
+        plot_event_shading(ax, data)
     fig.tight_layout()
     pdf.add_figure(fig, close=True, full_width=True)
 
@@ -214,7 +254,35 @@ def device_page_iphone(pdf: TaskReport, file: FileMetadata) -> None:
         if col not in data.columns:
             continue
         time_stability_plot(ax, data[col])
+        plot_event_shading(ax, data)
         ax.set_title(col)
+    fig.tight_layout()
+    pdf.add_figure(fig, close=True, full_width=True)
+
+
+def device_page_eyelink(pdf: TaskReport, file: FileMetadata) -> None:
+    pdf.add_device_page(file.device, file.device_info)
+    success, data = extract_data(pdf, file, hdf5.extract_eyelink)
+    if not success:
+        return
+
+    fig_width, fig_height = pdf.epw, pdf.epw / 3 * 3
+    fig, axs = plt.subplots(3, 1, figsize=figsize_mm(fig_width, fig_height))
+
+    # Timing Variability
+    time_offset_plot(axs[0], data['Time_NUC'], data['Time_LSL'], 'Time_NUC', 'Time_LSL')
+    plot_event_shading(axs[0], data)
+
+    # Timing Stability - NUC
+    time_stability_plot(axs[1], data['Time_NUC'])
+    plot_event_shading(axs[1], data)
+    axs[1].set_title('Time_NUC')
+
+    # Timing Stability - LSL
+    time_stability_plot(axs[2], data['Time_LSL'])
+    plot_event_shading(axs[2], data)
+    axs[2].set_title('Time_LSL')
+
     fig.tight_layout()
     pdf.add_figure(fig, close=True, full_width=True)
 
