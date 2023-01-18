@@ -5,7 +5,6 @@ Generate a list of data files for a set of deviations and potential issues.
 import os
 from tqdm.contrib.concurrent import process_map
 from itertools import chain
-from enum import IntEnum
 from typing import NamedTuple, List, Optional
 
 import neurobooth_analysis_tools.data.files as nb_file
@@ -53,23 +52,40 @@ def main():
     file_metadata = list(sorted(file_metadata, key=lambda m: (m.subject_id, m.datetime, m.task, m.device)))
     hdf_files = list(filter(lambda f: f.extension == '.hdf5', file_metadata))
 
-    logger = IssueLogger(settings)
-    for issues in process_map(  # Write issues to file as the batches resolve
+    issues = process_map(
         run_hdf_checks,
         hdf_files,
-        desc='Checking Task/Instr Markers',
+        desc='Checking For Errors',
         unit='files',
         chunksize=BATCH_SIZE,
-    ):
-        logger.write_issues(issues)
+    )
+    issues = list(chain(*issues))
+    IssueLogger(settings).write_issues(issues)
 
 
 def run_hdf_checks(file: nb_file.FileMetadata) -> List[Optional[Issue]]:
     """Run all the data-related checks in a way that only loads the files once."""
-    device = nb_hdf.load_neurobooth_file(file)
-    return [
-        check_task_instr_marker(file, device),
-    ]
+    try:
+        device = nb_hdf.load_neurobooth_file(file)
+    except Exception as e:
+        return [Issue(
+            test_id='file_load',
+            issue_desc=f'Unable to load file: {e.args[0]}',
+            file=file,
+        )]
+
+    try:
+        return [
+            check_footer(file, device),
+            check_task_instr_marker(file, device),
+            check_sufficient_data(file, device),
+        ]
+    except Exception as e:
+        return [Issue(
+            test_id='unexpected_exception',
+            issue_desc=f'ERROR: {e.args[0]}',
+            file=file,
+        )]
 
 
 def check_task_instr_marker(
@@ -78,6 +94,13 @@ def check_task_instr_marker(
         test_id: str = 'check_task_instr_marker',
 ) -> Optional[Issue]:
     """Ensure that an HDF5 file includes markers for task and instruction beginning and end."""
+    if device.marker.time_series.shape[0] == 0:
+        return Issue(
+            test_id=test_id,
+            issue_desc=f'Marker time-series is empty.',
+            file=file,
+        )
+
     try:
         nb_hdf.extract_task_boundaries(device)
     except DataException as e:
@@ -93,6 +116,52 @@ def check_task_instr_marker(
         return Issue(
             test_id=test_id,
             issue_desc=f'INSTR: {e.args[0]}',
+            file=file,
+        )
+
+    return None
+
+
+def check_sufficient_data(
+        file: nb_file.FileMetadata,
+        device: nb_hdf.Device,
+        test_id: str = 'check_sufficient_data',
+) -> Optional[Issue]:
+    N = device.marker.time_series.shape[0]
+
+    if N == 0:
+        return Issue(
+            test_id=test_id,
+            issue_desc=f'Device time-series is empty!',
+            file=file,
+        )
+
+    if N == 1:
+        return Issue(
+            test_id=test_id,
+            issue_desc=f'Device time-series has single sample!',
+            file=file,
+        )
+
+    return None
+
+
+def check_footer(
+        file: nb_file.FileMetadata,
+        device: nb_hdf.Device,
+        test_id: str = 'check_footer',
+) -> Optional[Issue]:
+    if device.data.footer is None:
+        return Issue(
+            test_id=test_id,
+            issue_desc=f'Device missing footer.',
+            file=file,
+        )
+
+    if device.marker.footer is None:
+        return Issue(
+            test_id=test_id,
+            issue_desc=f'Marker missing footer.',
             file=file,
         )
 
