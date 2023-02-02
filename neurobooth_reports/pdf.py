@@ -9,6 +9,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import matplotlib.pyplot as plt
 
 from neurobooth_analysis_tools.data.types import NeuroboothTask, NeuroboothDevice
+from neurobooth_reports.output import set_permissions
 
 
 class Report(fpdf.FPDF):
@@ -66,6 +67,10 @@ class Report(fpdf.FPDF):
         self.cell(w=self.epw, txt=title, align='C')
         self.default_font()
         self.set_y(16)
+
+    def output_file(self, path, **kwargs):
+        self.output(path, **kwargs)
+        set_permissions(path)
 
 
 class SessionReport(Report):

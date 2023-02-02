@@ -138,7 +138,7 @@ def generate_session_reports(
         pdf = TaskReport(session, task)
         for file in task_files:
             create_device_page(pdf, file)
-        pdf.output(report_path)
+        pdf.output_file(report_path)
 
 
 def should_run_reports(session: str, report_paths: List[str], rerun_days: int) -> bool:
