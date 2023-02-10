@@ -12,7 +12,7 @@ import neurobooth_analysis_tools.data.hdf5 as nb_hdf
 from neurobooth_analysis_tools.data.types import DataException
 
 from neurobooth_reports.settings import ReportSettings
-from neurobooth_reports.output import set_permissions
+from neurobooth_reports.output import get_file_descriptor
 
 # How many tasks each worker process should handle at a time.
 # Affects progress bar resolution and maybe performance (larger batches minimize cross-process IO).
@@ -28,9 +28,8 @@ class Issue(NamedTuple):
 class IssueLogger:
     def __init__(self, settings: ReportSettings):
         self.path = os.path.join(settings.summary_dir, 'data_quality_issues.csv')
-        with open(self.path, 'w') as f:
+        with open(get_file_descriptor(self.path), 'w') as f:
             f.write('Test,Issue,Subject ID,Session Date,Task,Device,File Path\n')
-        set_permissions(self.path)
 
     def write_issues(self, issues: List[Optional[Issue]]):
         issues = [i for i in issues if i is not None]

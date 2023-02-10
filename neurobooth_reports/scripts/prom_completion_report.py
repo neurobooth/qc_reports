@@ -19,6 +19,8 @@ from neurobooth_reports.output import dataframe_to_csv, save_fig
 
 
 PROM_RC_FORMS: List[str] = [
+    'prom_ataxia',
+    'dysarthria_impact_scale',
     'neurobooth_falls',
     'neuro_qol_ue_short_form',
     'neuro_qol_le_short_form',
@@ -37,8 +39,6 @@ PROM_RC_FORMS: List[str] = [
     'chief_short_form',
     'neurobooth_vision_prom_ataxia',
     'promis_10',
-    'prom_ataxia',
-    'dysarthria_impact_scale',
     'system_usability_scale',
     'study_feedback',
 ]

@@ -11,16 +11,14 @@ FILES=(prom_completion.csv prom_contact.csv prom_completion_time.png prom_comple
 source $CONDA_DIR/etc/profile.d/conda.sh
 conda activate $CONDA_ENV
 TIME="$(date +%Y-%m-%d_%Hh-%Mm-%Ss)"
-prom_completion_report
+prom_completion_report || exit 1
 conda deactivate
 
-cd $LOCAL_SRC || exit 1
+cd $LOCAL_SRC || exit 2
 for file in "${FILES[@]}"
 do
     basename=${file%.*}    # Remove extension
     extension=${file##*.}  # Remove basename
-    new_file="$basename"_"$TIME.$extension"
-    cp "$file" "$new_file"
-    $UPLOADER_DIR/dropbox_uploader.sh upload "$new_file" $REMOTE_DST
-    rm "$new_file"
+    remote_file="$basename"_"$TIME.$extension"
+    $UPLOADER_DIR/dropbox_uploader.sh upload "$file" "$REMOTE_DST/$remote_file"
 done
