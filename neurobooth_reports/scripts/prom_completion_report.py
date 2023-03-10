@@ -19,6 +19,8 @@ from neurobooth_reports.output import dataframe_to_csv, save_fig
 
 
 PROM_RC_FORMS: List[str] = [
+    'contact',
+    'demographic',
     'prom_ataxia',
     'dysarthria_impact_scale',
     'neurobooth_falls',
@@ -69,7 +71,13 @@ def download_prom_table(spec: PromTableSpec, connection: Connection) -> pd.DataF
     table = pd.read_sql_table(
         spec.table_name,
         connection,
-        columns=['subject_id', spec.start_time_column, spec.end_time_column, spec.completion_column],
+        columns=[
+            'subject_id',
+            'redcap_event_name',
+            spec.start_time_column,
+            spec.end_time_column,
+            spec.completion_column
+        ],
     ).convert_dtypes()
 
     # Convert completion column to Boolean where 2 is yes
@@ -77,6 +85,13 @@ def download_prom_table(spec: PromTableSpec, connection: Connection) -> pd.DataF
         ~table[spec.completion_column].isna() &
         (table[spec.completion_column] == 2)
     )
+
+    # Alter event names to fix visit-level joins
+    table['redcap_event_name'] = table['redcap_event_name'].str.replace('enrollment', 'v1', regex=False)
+    # Some test subjects have weird duplicate entries... Remove these
+    table = table.sort_values(spec.end_time_column, na_position='first') \
+        .drop_duplicates(['subject_id', 'redcap_event_name'], keep='last') \
+        .reset_index(drop=True)
 
     return table
 
@@ -134,8 +149,10 @@ def download_contact_info(connection: Connection) -> pd.DataFrame:
 
     # Only keep the most recent contact information for each person
     table = table.loc[table['contact_complete'] == 2]
-    table = table.sort_values('end_time_contact').drop_duplicates('subject_id', keep='last').reset_index(drop=True)
-    table = table.drop(columns='contact_complete')
+    table = table.sort_values('end_time_contact', na_position='first')\
+        .drop_duplicates('subject_id', keep='last')\
+        .reset_index(drop=True)\
+        .drop(columns=['contact_complete', 'end_time_contact'])
 
     return table
 
@@ -146,9 +163,13 @@ def download_visit_dates(connection: Connection) -> pd.DataFrame:
         connection,
         columns=[
             'subject_id',
+            'redcap_event_name',
             'neurobooth_visit_dates',
         ],
     ).convert_dtypes()
+
+    # Alter event names to fix visit-level joins
+    table['redcap_event_name'] = table['redcap_event_name'].str.replace('enrollment', 'v1', regex=False)
 
     return table
 
@@ -160,7 +181,6 @@ def download_consent_info(connection: Connection) -> pd.DataFrame:
         columns=[
             'subject_id',
             'test_subject_boolean',
-            'redcap_event_name',
             'subject_mrn',
             'unsecured_email_agreement_boolean',
         ],
@@ -185,16 +205,44 @@ def download_diagnoses(connection: Connection) -> pd.DataFrame:
         connection,
         columns=[
             'subject_id',
-            'primary_diagnosis',
             'end_time_clinical',
+            'primary_diagnosis',
         ],
     ).convert_dtypes()
+
+    # Drop rows with missing info
+    table = table.dropna(subset='primary_diagnosis')
 
     # Convert the list of diagnosis keys into a comma-separated string of diagnoses
     table['primary_diagnosis'] = table['primary_diagnosis'].map(
         lambda diags: ', '.join([diagnosis_map[d] for d in sorted(diags)]),
         na_action='ignore'
     ).astype('string')
+
+    # Only keep the most recent diagnosis for each person
+    table = table.sort_values('end_time_clinical', na_position='first')\
+        .drop_duplicates('subject_id', keep='last')\
+        .reset_index(drop=True)\
+        .drop(columns=['end_time_clinical'])
+
+    return table
+
+
+def download_end_of_visit_details(connection: Connection) -> pd.DataFrame:
+    table = pd.read_sql_table(
+        'rc_end_of_visit_details',
+        connection,
+        columns=[
+            'subject_id',
+            'redcap_event_name',
+            'visit_complete_boolean',
+            'follow_up_interest_boolean',
+            'visit_notes',
+        ],
+    ).convert_dtypes()
+
+    # Alter event names to fix visit-level joins
+    table['redcap_event_name'] = table['redcap_event_name'].str.replace('enrollment', 'v1', regex=False)
 
     return table
 
@@ -206,47 +254,8 @@ def reorder_column(df: pd.DataFrame, col_name: str, idx: int) -> pd.DataFrame:
     return df.loc[:, cols]
 
 
-def fuzzy_join_date(
-        left_df: pd.DataFrame,
-        right_df: pd.DataFrame,
-        hard_on: List[str],
-        fuzzy_on_left: str,
-        fuzzy_on_right: str,
-        offset_column_name: str = 'Offset_Days',
-        **kwargs,
-) -> pd.DataFrame:
-    """
-    Do a fuzzy join based on two date columns, where the closest match between the dates is selected.
-
-    :param left_df: The left dataframe in the join
-    :param right_df: The right dataframe in the join
-    :param hard_on: Any non-fuzzy join conditions
-    :param fuzzy_on_left: The date column to be used in the left dataframe
-    :param fuzzy_on_right:  The date column to be used in the right dataframe
-    :param offset_column_name:  The name of the column that will contain the calculated date offset
-    :param kwargs: Any kwargs that should be passed on to the join (e.g., 'how' to specify join type)
-    :return: The joined dataframe, with an added column for the separation of the joined dates.
-    """
-    possible_matches = pd.merge(left_df, right_df, on=hard_on, **kwargs)
-
-    # Calculate number of days (signed) between each date column in the fuzzy join
-    possible_matches[offset_column_name] = possible_matches[fuzzy_on_right] - possible_matches[fuzzy_on_left]
-    possible_matches[offset_column_name] /= np.timedelta64(1, 'D')  # Convert to days
-
-    # Rank possible matches based on proximity
-    possible_matches['Rank'] = possible_matches[offset_column_name].abs()
-    possible_matches['Rank'] = possible_matches \
-        .groupby([*hard_on, fuzzy_on_left])['Rank'] \
-        .rank(method='min', na_option='bottom')
-
-    # Only keep the best matches (rank 1)
-    mask = possible_matches['Rank'] == 1
-    possible_matches = possible_matches.loc[mask]
-    return possible_matches.drop(columns='Rank')  # No longer needed
-
-
 def main():
-    args = parse_arguments()
+    parse_arguments()
     settings = ReportSettings()
 
     table_specs = list(map(form_name_to_table_spec, PROM_RC_FORMS))
@@ -262,52 +271,38 @@ def main():
         visit_data = download_visit_dates(connection)
         consent_data = download_consent_info(connection)
         diagnosis_data = download_diagnoses(connection)
+        eov_data = download_end_of_visit_details(connection)
 
-    # TODO: Fuzzy join in the diagnoses
-
-    # Combine, subject, contact, consent, and visit info
+    # Combine, subject, latest diagnosis, latest contact, consent, and visit info
     subject_data = pd.merge(subject_data, consent_data, how='left', on='subject_id', validate='1:1')
     subject_data = subject_data.loc[~subject_data['test_subject_boolean']]  # Exclude test subjects
     subject_data = subject_data.drop(columns='test_subject_boolean')
+    subject_data = pd.merge(subject_data, diagnosis_data, how='left', on='subject_id', validate='1:1')
     subject_data = pd.merge(subject_data, contact_data, how='left', on='subject_id', validate='1:1')
     visit_data = pd.merge(subject_data, visit_data, how='left', on='subject_id', validate='1:m')
-    visit_data = visit_data.loc[~visit_data['neurobooth_visit_dates'].isna()]  # Exclude rows with no visit date
+    visit_data = visit_data.dropna(subset='neurobooth_visit_dates')  # Exclude rows with no visit date
+    visit_data = pd.merge(visit_data, eov_data, how='left', on=['subject_id', 'redcap_event_name'], validate='1:1')
 
-    # Add diagnosis information
-    visit_data = fuzzy_join_date(
-        left_df=visit_data,
-        right_df=diagnosis_data,
-        hard_on=['subject_id'],
-        fuzzy_on_left='neurobooth_visit_dates',
-        fuzzy_on_right='end_time_clinical',
-        offset_column_name='clinical_days_offset',
-        how='left'
-    ).drop(columns=['end_time_clinical', 'clinical_days_offset'])
+    # Exclude incomplete visits in the past
+    visit_data['Future'] = visit_data['neurobooth_visit_dates'] >= datetime.datetime.today()
+    visit_data = visit_data.loc[visit_data['visit_complete_boolean'] | visit_data['Future']]
+    visit_data = visit_data.drop(columns='visit_complete_boolean')
 
-    # Fuzzy-join PROMs with visit-level data to yield wide table with all relevant info
+    # Join PROMs with visit-level data to yield wide table with all relevant info
     visit_prom_data = visit_data.copy()
     for spec, prom in prom_data.items():
-        visit_prom_data = fuzzy_join_date(
-            left_df=visit_prom_data,
-            right_df=prom,
-            hard_on=['subject_id'],
-            fuzzy_on_left='neurobooth_visit_dates',
-            fuzzy_on_right=spec.start_time_column,
-            offset_column_name=spec.offset_column,
-            how='left'
+        visit_prom_data = pd.merge(
+            visit_prom_data, prom,
+            how='left', on=['subject_id', 'redcap_event_name'], validate='1:1'
         )
+        visit_prom_data[spec.offset_column] = \
+            visit_prom_data[spec.end_time_column] - visit_prom_data['neurobooth_visit_dates']
+        visit_prom_data[spec.offset_column] /= np.timedelta64(1, 'D')  # Convert to days
 
     for spec in table_specs:
         # Mark NaN values in PROM completion columns (missing from joins) as uncompleted
         mask = visit_prom_data[spec.completion_column].isna()
         visit_prom_data.loc[mask, spec.completion_column] = False
-
-        # Un-join PROMs completed too long before the visit date
-        mask = (visit_prom_data[spec.offset_column] + args.complete_threshold_days) <= 0
-        visit_prom_data.loc[mask, spec.completion_column] = False
-        visit_prom_data.loc[mask, spec.start_time_column] = pd.NaT
-        visit_prom_data.loc[mask, spec.end_time_column] = pd.NaT
-        visit_prom_data.loc[mask, spec.offset_column] = pd.NA
 
     # Create reports
     prom_completion_report(visit_data, visit_prom_data, table_specs, settings)
@@ -316,18 +311,7 @@ def main():
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate device timing reports.")
-    parser.add_argument(
-        '--complete-threshold-days',
-        type=int,
-        default=60,
-        help="Consider a PROM incomplete if it was completed more than this many days before the visit."
-    )
-
-    args = parser.parse_args()
-    if args.complete_threshold_days <= 0:
-        parser.error("--complete-threshold-days should be a positive integer.")
-
-    return args
+    return parser.parse_args()
 
 
 def prom_completion_report(
@@ -342,12 +326,13 @@ def prom_completion_report(
 
     # Arm 1 does not do the PROM Ataxia or DIS. Quick hack: mark them as completed for Arm 1.
     visit_prom_data = visit_prom_data.copy().sort_values(['subject_id', 'neurobooth_visit_dates'])
-    arm1_mask = visit_prom_data['redcap_event_name'] == 'enrollment_arm_1'
+    arm1_mask = visit_prom_data['redcap_event_name'].str.contains('_arm_1', regex=False)
     visit_prom_data.loc[arm1_mask, 'prom_ataxia_complete'] = True
     visit_prom_data.loc[arm1_mask, 'dysarthria_impact_scale_complete'] = True
 
-    report = visit_prom_data[['subject_id', 'neurobooth_visit_dates', 'redcap_event_name', 'primary_diagnosis']].copy()
-    report['Future'] = report['neurobooth_visit_dates'] > datetime.datetime.today()
+    report = visit_prom_data[
+        ['subject_id', 'neurobooth_visit_dates', 'redcap_event_name', 'primary_diagnosis', 'Future']
+    ].copy()
 
     # Calculate completion data
     completion_cols = [spec.completion_column for spec in table_specs]
@@ -374,13 +359,14 @@ def prom_completion_report(
         report['Future'], ['subject_id', 'neurobooth_visit_dates']
     ].set_index('subject_id').to_dict()['neurobooth_visit_dates']
     report = report.loc[~report['Future']]
-    report.drop(columns='Future')
+    report = report.drop(columns='Future')
     report['Upcoming_Visit_Date'] = report['subject_id'].map(future_visits)
 
     # Add contact info
     report = report.drop(columns='redcap_event_name')  # Will be duplicated if not dropped from one table
     report = report.drop(columns='primary_diagnosis')  # Will be duplicated if not dropped from one table
     report = pd.merge(visit_data, report, on=['subject_id', 'neurobooth_visit_dates'], validate='1:1')
+    report = report.drop(columns='Future')
     report = reorder_column(report, 'neurobooth_visit_dates', 1)
     report = reorder_column(report, 'Upcoming_Visit_Date', 2)
     report = reorder_column(report, 'Visit_Num', 3)

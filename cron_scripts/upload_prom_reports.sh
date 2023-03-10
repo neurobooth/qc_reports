@@ -2,6 +2,7 @@
 
 # Script settings
 UPLOADER_DIR=/space/drwho/3/neurobooth/applications/opt/Dropbox-Uploader
+UPLOADER_CONFIG=.dropbox_uploader
 LOCAL_SRC=/space/neo/3/neurobooth/reports/__SUMMARY__
 REMOTE_DST=PROM_Reports
 CONDA_ENV=reports
@@ -20,5 +21,5 @@ do
     basename=${file%.*}    # Remove extension
     extension=${file##*.}  # Remove basename
     remote_file="$basename"_"$TIME.$extension"
-    $UPLOADER_DIR/dropbox_uploader.sh upload "$file" "$REMOTE_DST/$remote_file"
+    $UPLOADER_DIR/dropbox_uploader.sh -f "$UPLOADER_DIR/$UPLOADER_CONFIG" upload "$file" "$REMOTE_DST/$remote_file"
 done
