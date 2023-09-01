@@ -21,6 +21,7 @@ from neurobooth_reports.output import dataframe_to_csv, save_fig
 PROM_RC_FORMS: List[str] = [
     'contact',
     'demographic',
+    'prom_ataxia_short_form',
     'prom_ataxia',
     'dysarthria_impact_scale',
     'neurobooth_falls',
@@ -43,6 +44,10 @@ PROM_RC_FORMS: List[str] = [
     'promis_10',
     'system_usability_scale',
     'study_feedback',
+]
+
+COMPLETION_METRIC_EXCLUDE = [
+    'prom_ataxia_short_form',
 ]
 
 
@@ -335,7 +340,10 @@ def prom_completion_report(
     ].copy()
 
     # Calculate completion data
-    completion_cols = [spec.completion_column for spec in table_specs]
+    completion_cols = [
+        spec.completion_column for spec in table_specs
+        if spec.form_name not in COMPLETION_METRIC_EXCLUDE
+    ]
     completion_matrix = visit_prom_data[completion_cols].to_numpy(dtype=bool)
     report['PROM_Completion_Pct'] = completion_matrix.mean(axis=1).round(3) * 100
     report['PROM_All_Complete'] = completion_matrix.all(axis=1)
