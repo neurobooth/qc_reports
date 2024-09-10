@@ -6,6 +6,12 @@ To install run the following command:
 
 ```pip install -e git+https://github.com/neurobooth/qc_reports.git#egg=neurobooth_reports```
 
+Filesystem and installation idiosyncracies:
+
+* If you get a directory not found error, you might need to edit the shebang line of prom_completion_report executable in conda environment's bin to remove 'local_mount' and start from 'space' instead. The executable should be in ```miniforge3/envs/<env name>/bin/prom_completion_report```
+* If you are not actively setting --prefix/--target/--src or other similar flags during pip installation, you might need to be in /space/... folder tree instead of /local_mount/space... folder tree - this is for pip to pick the right posixpath so that the installation is available across servers in the unified filesystem.
+
+
 # qc_reports
 
 Scripts to generate session level pdf reports for data collected at Neurobooth.
