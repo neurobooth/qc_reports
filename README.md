@@ -1,3 +1,11 @@
+# Neurobooth PROM Reports
+
+A set of scripts to generate Neurobooth PROM reports and upload them to dropbox.
+
+To install run the following command:
+
+```pip install -e git+https://github.com/neurobooth/qc_reports.git#egg=neurobooth_reports```
+
 # qc_reports
 
 Scripts to generate session level pdf reports for data collected at Neurobooth.
