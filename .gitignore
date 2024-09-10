@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# PyCharm project settings
+.idea/
+
+# Secrets
+secrets.json
+
+# Likely-to-change config files
+email_list.json

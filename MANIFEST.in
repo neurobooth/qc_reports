@@ -1,0 +1,3 @@
+include README.MD
+include LICENSE
+include neurobooth_reports/config.json
