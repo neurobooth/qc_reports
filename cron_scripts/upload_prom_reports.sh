@@ -6,7 +6,7 @@ UPLOADER_CONFIG=.dropbox_uploader
 LOCAL_SRC=/space/neo/3/neurobooth/reports/__SUMMARY__
 REMOTE_DST=PROM_Reports
 CONDA_ENV=reports
-CONDA_DIR=/space/drwho/3/neurobooth/applications/opt/miniconda3
+CONDA_DIR=/space/drwho/3/neurobooth/applications/opt/miniforge3
 FILES=(prom_completion.csv prom_contact.csv prom_completion_time.png prom_completion_time_stats.csv)
 
 source $CONDA_DIR/etc/profile.d/conda.sh
