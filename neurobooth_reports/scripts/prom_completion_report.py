@@ -242,6 +242,7 @@ def download_end_of_visit_details(connection: Connection) -> pd.DataFrame:
             'redcap_event_name',
             'visit_complete_boolean',
             'follow_up_interest_boolean',
+            'prom_interest_boolean',
             'visit_notes',
         ],
     ).convert_dtypes()
@@ -345,7 +346,9 @@ def prom_completion_report(
         if spec.form_name not in COMPLETION_METRIC_EXCLUDE
     ]
     completion_matrix = visit_prom_data[completion_cols].to_numpy(dtype=bool)
-    report['PROM_Completion_Pct'] = completion_matrix.mean(axis=1).round(3) * 100
+    report['PROM_Completion_Pct'] = (completion_matrix.mean(axis=1).round(3) * 100).astype(float)
+    report['PROM_Completion_Pct'] = report['PROM_Completion_Pct'].astype(float)
+    report['PROM_Completion_Pct'] = report['PROM_Completion_Pct'].apply(lambda x: f"{x:.4f}")
     report['PROM_All_Complete'] = completion_matrix.all(axis=1)
 
     # Detect longitudinal visits
