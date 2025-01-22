@@ -181,7 +181,7 @@ def download_visit_dates(connection: Connection) -> pd.DataFrame:
 
 def download_consent_info(connection: Connection) -> pd.DataFrame:
     table = pd.read_sql_table(
-        'rc_participant_and_consent_information',
+        'rc_baseline_data',
         connection,
         columns=[
             'subject_id',
