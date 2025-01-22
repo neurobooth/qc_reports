@@ -181,15 +181,21 @@ def download_visit_dates(connection: Connection) -> pd.DataFrame:
 
 def download_consent_info(connection: Connection) -> pd.DataFrame:
     table = pd.read_sql_table(
-        'rc_participant_and_consent_information',
+        'rc_baseline_data',
         connection,
         columns=[
             'subject_id',
             'test_subject_boolean',
             'subject_mrn',
             'unsecured_email_agreement_boolean',
+            'patient_status',
         ],
     ).convert_dtypes()
+
+    # Fix patient_status encoding
+    table['patient_status'] = table['patient_status'].astype('string')
+    table['patient_status'] = table['patient_status'].replace('1', 'alive')
+    table['patient_status'] = table['patient_status'].replace('2', 'deceased')
 
     return table
 
@@ -283,6 +289,7 @@ def main():
     subject_data = pd.merge(subject_data, consent_data, how='left', on='subject_id', validate='1:1')
     subject_data = subject_data.loc[~subject_data['test_subject_boolean']]  # Exclude test subjects
     subject_data = subject_data.drop(columns='test_subject_boolean')
+    subject_data = subject_data[~(subject_data['patient_status']=='deceased')]
     subject_data = pd.merge(subject_data, diagnosis_data, how='left', on='subject_id', validate='1:1')
     subject_data = pd.merge(subject_data, contact_data, how='left', on='subject_id', validate='1:1')
     visit_data = pd.merge(subject_data, visit_data, how='left', on='subject_id', validate='1:m')
