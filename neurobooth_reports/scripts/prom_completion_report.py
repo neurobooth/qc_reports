@@ -289,7 +289,7 @@ def main():
     subject_data = pd.merge(subject_data, consent_data, how='left', on='subject_id', validate='1:1')
     subject_data = subject_data.loc[~subject_data['test_subject_boolean']]  # Exclude test subjects
     subject_data = subject_data.drop(columns='test_subject_boolean')
-    subject_data = subject_data[~(subject_data['patient_status']=='deceased')]
+    subject_data = subject_data[~(subject_data['patient_status']=='deceased')] # Exclude deceased subjects
     subject_data = pd.merge(subject_data, diagnosis_data, how='left', on='subject_id', validate='1:1')
     subject_data = pd.merge(subject_data, contact_data, how='left', on='subject_id', validate='1:1')
     visit_data = pd.merge(subject_data, visit_data, how='left', on='subject_id', validate='1:m')
