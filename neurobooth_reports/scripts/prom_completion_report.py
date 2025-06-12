@@ -189,6 +189,7 @@ def download_consent_info(connection: Connection) -> pd.DataFrame:
             'subject_mrn',
             'unsecured_email_agreement_boolean',
             'patient_status',
+            'follow_up_interest_boolean'
         ],
     ).convert_dtypes()
 
@@ -247,7 +248,6 @@ def download_end_of_visit_details(connection: Connection) -> pd.DataFrame:
             'subject_id',
             'redcap_event_name',
             'visit_complete_boolean',
-            'follow_up_interest_boolean',
             'prom_interest_boolean',
             'visit_notes',
         ],
